@@ -14,6 +14,8 @@ export const CLI_COMMANDS = Object.freeze({
   traceWebSourceLocation: "trace-web-source-location",
   traceWebModuleImports: "trace-web-module-imports",
   analyze: "analyze",
+  electra: "electra",
+  ai: "ai",
   inspect: "inspect",
   decompile: "decompile",
   setup: "setup",

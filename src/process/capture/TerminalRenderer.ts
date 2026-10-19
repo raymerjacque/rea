@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import type { TerminalRetention } from "../../domain/process/processCaptureCoverage.js";
 import type { BoundedProcessTextNormalization } from "./ProcessNormalization.js";
 
@@ -7,13 +6,8 @@ import type {
   RenderedTerminalFrame,
 } from "../../domain/process/processCapture.js";
 
-const require = createRequire(import.meta.url);
-// SAFETY: both pinned xterm packages publish CommonJS at runtime and matching declarations.
-const HeadlessPackage =
-  require("@xterm/headless") as typeof import("@xterm/headless");
-// SAFETY: the addon package is pinned with the compatible headless xterm release.
-const SerializePackage =
-  require("@xterm/addon-serialize") as typeof import("@xterm/addon-serialize");
+import { Terminal } from "@xterm/headless";
+import { SerializeAddon } from "@xterm/addon-serialize";
 
 const TRAILING_SPACES = / +$/u;
 
@@ -38,8 +32,8 @@ interface TerminalRendererOptions {
  * Comparisons retain both because neither representation subsumes the other.
  */
 export class TerminalRenderer {
-  readonly #terminal: InstanceType<typeof HeadlessPackage.Terminal>;
-  readonly #serializeAddon = new SerializePackage.SerializeAddon();
+  readonly #terminal: InstanceType<typeof Terminal>;
+  readonly #serializeAddon = new SerializeAddon();
   readonly #frames: RenderedTerminalFrame[] = [];
   #pending: Promise<void> = Promise.resolve();
   #capturedBytes = 0;
@@ -49,7 +43,7 @@ export class TerminalRenderer {
   #unknownSizeFrames = 0;
 
   constructor(private readonly options: TerminalRendererOptions) {
-    this.#terminal = new HeadlessPackage.Terminal({
+    this.#terminal = new Terminal({
       allowProposedApi: true,
       cols: options.columns,
       rows: options.rows,

@@ -477,8 +477,22 @@ const devinDirectory = ({ home, platform, env }: ClientPathContext): string =>
     ? join(windowsAppDataRoots(home, env).roaming, "devin")
     : join(env.XDG_CONFIG_HOME || join(home, ".config"), "devin");
 
+const electraDirectory = ({ home, platform, env }: ClientPathContext): string =>
+  env.ELECTRA_CONFIG_DIR ||
+  join(xdgConfigHome({ home, platform, env }), "electra");
+
 /** Stable product metadata used to derive setup discovery and documentation. */
 export const SUPPORTED_CLIENT_DEFINITIONS = [
+  {
+    name: "electra",
+    displayName: "Electra AI",
+    skillPath: (context: ClientPathContext) =>
+      join(electraDirectory(context), "skills"),
+    configPath: (context: ClientPathContext) =>
+      join(electraDirectory(context), "mcp_servers.json"),
+    markerPath: electraDirectory,
+    format: "json",
+  },
   {
     name: "claude_code",
     displayName: "Claude Code",

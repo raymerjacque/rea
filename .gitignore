@@ -9,6 +9,8 @@ build/
 node_modules
 *.egg-info/
 *.egg
+/rea.bin
+/rea
 
 # Virtual environments
 .venv/
