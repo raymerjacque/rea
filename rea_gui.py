@@ -196,7 +196,7 @@ QMainWindow {
     background-color: #F8FAFC;
 }
 
-QFrame.card {
+QFrame[class="card"] {
     background-color: #FFFFFF;
     border: 1px solid #E2E8F0;
     border-radius: 8px;
@@ -231,7 +231,7 @@ QFrame.card {
     border: 1px solid #BFDBFE;
 }
 
-/* Buttons */
+/* Base Buttons */
 QPushButton {
     background-color: #FFFFFF;
     color: #334155;
@@ -251,39 +251,44 @@ QPushButton:pressed {
     background-color: #E2E8F0;
 }
 
-QPushButton.primary {
+/* Primary Vibrant Blue Buttons */
+QPushButton[class="primary"], #btn_browse, #btn_hero_browse, #btn_auto_ai, #btn_send, #btn_run_cmd, #btn_save_settings, #btn_close_about {
     background-color: #2563EB;
     color: #FFFFFF;
     border: 1px solid #1D4ED8;
     font-weight: 600;
 }
 
-QPushButton.primary:hover {
+QPushButton[class="primary"]:hover, #btn_browse:hover, #btn_hero_browse:hover, #btn_auto_ai:hover, #btn_send:hover, #btn_run_cmd:hover, #btn_save_settings:hover, #btn_close_about:hover {
     background-color: #1D4ED8;
     border-color: #1E40AF;
+    color: #FFFFFF;
 }
 
-QPushButton.primary:pressed {
+QPushButton[class="primary"]:pressed, #btn_browse:pressed, #btn_hero_browse:pressed, #btn_auto_ai:pressed, #btn_send:pressed, #btn_run_cmd:pressed, #btn_save_settings:pressed, #btn_close_about:pressed {
     background-color: #1E40AF;
+    color: #FFFFFF;
 }
 
-QPushButton.action {
+/* Action Toolbar Buttons */
+QPushButton[class="action"] {
     background-color: #F8FAFC;
     color: #1E293B;
     border: 1px solid #E2E8F0;
     border-radius: 6px;
     padding: 6px 12px;
     font-weight: 600;
-    text-align: left;
+    text-align: center;
 }
 
-QPushButton.action:hover {
+QPushButton[class="action"]:hover {
     background-color: #EFF6FF;
     border-color: #93C5FD;
     color: #1D4ED8;
 }
 
-QPushButton.chip {
+/* Quick Chips */
+QPushButton[class="chip"] {
     background-color: #F1F5F9;
     color: #475569;
     border: 1px solid #E2E8F0;
@@ -293,7 +298,7 @@ QPushButton.chip {
     font-weight: 500;
 }
 
-QPushButton.chip:hover {
+QPushButton[class="chip"]:hover {
     background-color: #E0E7FF;
     border-color: #A5B4FC;
     color: #3730A3;
@@ -330,7 +335,7 @@ QTabBar::tab {
     color: #64748B;
     border: 1px solid #E2E8F0;
     border-bottom: none;
-    padding: 8px 18px;
+    padding: 7px 12px;
     font-weight: 600;
     margin-right: 4px;
     border-top-left-radius: 6px;
@@ -348,8 +353,33 @@ QTabBar::tab:hover:!selected {
     color: #1E293B;
 }
 
+/* Dropdown Menu */
+QMenu {
+    background-color: #FFFFFF;
+    color: #1E293B;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 6px 20px 6px 12px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #EFF6FF;
+    color: #1D4ED8;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #E2E8F0;
+    margin: 4px 0;
+}
+
 /* Code & Log Viewers */
-QPlainTextEdit.code-view, QTextEdit.code-view {
+QPlainTextEdit[class="code-view"], QTextEdit[class="code-view"] {
     background-color: #FFFFFF;
     color: #1E293B;
     border: none;
@@ -642,6 +672,7 @@ class SettingsDialog(QDialog):
         btn_box.addWidget(btn_cancel)
 
         btn_save = QPushButton("Save Settings")
+        btn_save.setObjectName("btn_save_settings")
         btn_save.setProperty("class", "primary")
         btn_save.clicked.connect(self._save_and_close)
         btn_box.addWidget(btn_save)
@@ -688,10 +719,10 @@ class SettingsDialog(QDialog):
 
         ok, msg = _do_test()
         if ok:
-            self.lbl_test_result.setText(f"✓ {msg}")
+            self.lbl_test_result.setText(f"[OK] {msg}")
             self.lbl_test_result.setStyleSheet("color: #10B981; font-weight: 600;")
         else:
-            self.lbl_test_result.setText(f"✗ {msg}")
+            self.lbl_test_result.setText(f"[Failed] {msg}")
             self.lbl_test_result.setStyleSheet("color: #EF4444; font-weight: 500;")
 
     def _save_and_close(self):
@@ -806,12 +837,152 @@ class AboutDialog(QDialog):
         btn_box.addStretch()
 
         btn_close = QPushButton("Close")
+        btn_close.setObjectName("btn_close_about")
         btn_close.setProperty("class", "primary")
         btn_close.setFixedWidth(90)
         btn_close.clicked.connect(self.accept)
         btn_box.addWidget(btn_close)
 
         layout.addLayout(btn_box)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  REA SUBCOMMANDS CATALOG & CUSTOM COMMAND DIALOG
+# ─────────────────────────────────────────────────────────────────────────────
+
+REA_ALL_COMMANDS = [
+    # Binary & Disassembly
+    ("inspect-with-objdump", "Headers, sections, disassembly, and symbols via GNU objdump"),
+    ("analyze-with-radare2", "Functions, basic blocks, control flow graphs, xrefs via Radare2"),
+    ("decompile-with-ghidra", "Decompile binary functions into readable C via Ghidra"),
+    ("decompile-with-retdec", "Decompile binary functions into high-level C via RetDec"),
+    ("inspect-elf-dependencies", "ELF dynamic libraries, DT_NEEDED, and security hardening"),
+    ("inspect-pe-headers", "Windows PE DOS/NT headers, imports, exports, and sections"),
+    ("inspect-macho-headers", "Apple Mach-O headers, load commands, and dylib resolution"),
+    ("inspect-wasm-artifact", "Disassemble and inspect WebAssembly artifacts with WABT"),
+    ("instructions", "Read raw machine instructions without decompiling"),
+    ("read-bytes", "Read raw memory bytes at an analysis address"),
+    ("search-bytes", "Search for masked byte patterns in initialized memory"),
+    ("search", "Search all analyzed strings and procedure names"),
+    ("xrefs", "List references and cross-references to an address"),
+    # Android & Mobile
+    ("search-android-classes", "Search and inventory APK DEX classes and structures"),
+    ("project-android-application-graph", "Project APK inventory into Android application graph"),
+    ("list-adb-devices", "List connected Android physical devices and emulators"),
+    ("list-adb-packages", "List installed packages on connected Android device"),
+    ("read-adb-logcat", "Read live logcat stream from connected Android device"),
+    ("install-adb-package", "Install local APK onto connected Android device"),
+    ("pull-adb-package", "Pull installed APK set from connected Android device"),
+    ("start-adb-app", "Start launcher activity of installed Android package"),
+    # Web & JavaScript
+    ("inspect-web-page", "Inspect active page DOM and listeners through Chrome DevTools Protocol"),
+    ("inspect-web-network-capture", "Inspect captured HAR, mitmproxy, or Fiddler network records"),
+    ("recover-javascript-sources", "Recover readable JavaScript modules with source provenance"),
+    ("list-browser-targets", "List active CDP browser pages and targets"),
+    ("list-electron-targets", "List local targets exposed by Electron CDP endpoints"),
+    # Dynamic Instrumentation & Frida
+    ("instrument-with-frida", "Run dynamic Frida script against target process"),
+    ("list-frida-devices", "List local and remote Frida devices"),
+    ("list-frida-processes", "List processes visible through Frida device"),
+    ("observe-native-calls", "Record entries into functions or Obj-C methods under LLDB"),
+]
+
+
+class CustomCommandDialog(QDialog):
+    """Dialog allowing users to execute any of the 80+ REA subcommands with custom parameters."""
+
+    def __init__(self, parent=None, target_path: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle("Run REA Command")
+        self.setMinimumWidth(580)
+        self.setStyleSheet(LIGHT_THEME_QSS)
+        self.target_path = target_path
+        self.selected_command: List[str] = []
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+        layout.setContentsMargins(22, 22, 22, 22)
+
+        title = QLabel("Execute Under-The-Hood REA Command")
+        title.setStyleSheet("font-size: 16px; font-weight: 700; color: #1E293B;")
+        layout.addWidget(title)
+
+        desc = QLabel(
+            "REA contains over 80 specialized reverse engineering subcommands for binaries, "
+            "Android APKs, Web/CDP runtimes, and dynamic Frida instrumentation. "
+            "Select any tool below or customize arguments."
+        )
+        desc.setStyleSheet("color: #64748B; font-size: 12px; line-height: 1.4;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        # Command Selector
+        layout.addWidget(QLabel("Select Tool / Subcommand:"))
+        self.combo_cmd = QComboBox()
+        self.combo_cmd.setEditable(True)
+        for cmd_name, cmd_desc in REA_ALL_COMMANDS:
+            self.combo_cmd.addItem(f"{cmd_name} — {cmd_desc}", cmd_name)
+        layout.addWidget(self.combo_cmd)
+
+        # Arguments Input
+        layout.addWidget(QLabel("Arguments & Target Options:"))
+        self.txt_args = QLineEdit()
+        if self.target_path:
+            self.txt_args.setText(self.target_path)
+        self.txt_args.setPlaceholderText("e.g. /path/to/binary or function_name")
+        layout.addWidget(self.txt_args)
+
+        # Format selector
+        h_opt = QHBoxLayout()
+        h_opt.addWidget(QLabel("Output Format:"))
+        self.combo_fmt = QComboBox()
+        for fmt in ("(default)", "json", "toon", "yaml", "md", "jsonl"):
+            self.combo_fmt.addItem(fmt)
+        h_opt.addWidget(self.combo_fmt)
+
+        self.chk_full = QCheckBox("Full envelope (--full-output)")
+        h_opt.addWidget(self.chk_full)
+        h_opt.addStretch()
+        layout.addLayout(h_opt)
+
+        # Buttons
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.clicked.connect(self.reject)
+        btn_box.addWidget(btn_cancel)
+
+        btn_run = QPushButton("Execute Command")
+        btn_run.setObjectName("btn_run_cmd")
+        btn_run.setProperty("class", "primary")
+        btn_run.clicked.connect(self._on_run)
+        btn_box.addWidget(btn_run)
+
+        layout.addLayout(btn_box)
+
+    def _on_run(self):
+        cmd = self.combo_cmd.currentData()
+        if not cmd:
+            cmd = self.combo_cmd.currentText().split(" ")[0].strip()
+
+        args_str = self.txt_args.text().strip()
+        import shlex
+        extra_args = shlex.split(args_str) if args_str else []
+
+        full_args = [cmd] + extra_args
+
+        fmt = self.combo_fmt.currentText()
+        if fmt != "(default)":
+            full_args.extend(["--format", fmt])
+
+        if self.chk_full.isChecked():
+            full_args.append("--full-output")
+
+        self.selected_command = full_args
+        self.accept()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -961,12 +1132,12 @@ class ReaMainWindow(QMainWindow):
         layout.addWidget(self.combo_model)
 
         # Settings Button
-        btn_settings = QPushButton("⚙ Settings")
+        btn_settings = QPushButton("Settings")
         btn_settings.clicked.connect(self._open_settings)
         layout.addWidget(btn_settings)
 
         # About Button
-        btn_about = QPushButton("ℹ About")
+        btn_about = QPushButton("About")
         btn_about.clicked.connect(self._open_about)
         layout.addWidget(btn_about)
 
@@ -981,7 +1152,8 @@ class ReaMainWindow(QMainWindow):
         layout.setSpacing(10)
 
         # Prominent Browse Button
-        self.btn_browse = QPushButton("📂 Browse Binary... (Ctrl+O)")
+        self.btn_browse = QPushButton("Browse Binary... (Ctrl+O)")
+        self.btn_browse.setObjectName("btn_browse")
         self.btn_browse.setProperty("class", "primary")
         self.btn_browse.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn_browse.setToolTip("Click to browse and open any binary or executable file on your computer")
@@ -996,7 +1168,7 @@ class ReaMainWindow(QMainWindow):
         layout.addWidget(self.txt_target_path, 1)
 
         # Clear Button
-        self.btn_clear_target = QPushButton("✕ Clear")
+        self.btn_clear_target = QPushButton("Clear")
         self.btn_clear_target.setFixedHeight(30)
         self.btn_clear_target.setToolTip("Unload current binary")
         self.btn_clear_target.clicked.connect(self.clear_target_file)
@@ -1032,36 +1204,89 @@ class ReaMainWindow(QMainWindow):
         actions_bar.setStyleSheet("background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0; padding: 6px 10px;")
         actions_layout = QHBoxLayout(actions_bar)
         actions_layout.setContentsMargins(8, 4, 8, 4)
-        actions_layout.setSpacing(8)
+        actions_layout.setSpacing(6)
 
-        btn_inspect = QPushButton("🔍 Inspect Headers")
+        btn_inspect = QPushButton("Inspect Headers")
         btn_inspect.setProperty("class", "action")
         btn_inspect.clicked.connect(self.action_inspect_headers)
         actions_layout.addWidget(btn_inspect)
 
-        btn_disasm = QPushButton("⚙ Disassemble")
+        btn_disasm = QPushButton("Disassemble")
         btn_disasm.setProperty("class", "action")
         btn_disasm.clicked.connect(self.action_disassemble)
         actions_layout.addWidget(btn_disasm)
 
-        btn_decompile = QPushButton("🧩 Decompile (Ghidra)")
+        btn_decompile = QPushButton("Decompile (Ghidra)")
         btn_decompile.setProperty("class", "action")
         btn_decompile.clicked.connect(self.action_decompile)
         actions_layout.addWidget(btn_decompile)
 
-        btn_strings = QPushButton("📜 Extract Strings")
+        btn_strings = QPushButton("Extract Strings")
         btn_strings.setProperty("class", "action")
         btn_strings.clicked.connect(self.action_strings)
         actions_layout.addWidget(btn_strings)
 
-        btn_audit = QPushButton("🛡 Security Audit")
+        btn_audit = QPushButton("Security Audit")
         btn_audit.setProperty("class", "action")
         btn_audit.clicked.connect(self.action_security_audit)
         actions_layout.addWidget(btn_audit)
 
+        # More Tools Dropdown Menu (Direct access to all 80+ REA subcommands)
+        btn_more = QPushButton("More Tools ▾")
+        btn_more.setProperty("class", "action")
+        menu_more = QMenu(self)
+
+        act_retdec = menu_more.addAction("Decompile with RetDec")
+        act_retdec.triggered.connect(lambda: self._run_extended_tool("decompile-with-retdec"))
+
+        act_r2 = menu_more.addAction("Analyze with Radare2")
+        act_r2.triggered.connect(lambda: self._run_extended_tool("analyze-with-radare2"))
+
+        act_objdump = menu_more.addAction("GNU objdump Disassembly")
+        act_objdump.triggered.connect(lambda: self._run_extended_tool("inspect-with-objdump", ["disassemble"]))
+
+        menu_more.addSeparator()
+
+        act_pe = menu_more.addAction("Inspect PE Headers (Windows)")
+        act_pe.triggered.connect(lambda: self._run_extended_tool("inspect-pe-headers"))
+
+        act_macho = menu_more.addAction("Inspect Mach-O Headers (Apple)")
+        act_macho.triggered.connect(lambda: self._run_extended_tool("inspect-macho-headers"))
+
+        act_wasm = menu_more.addAction("Inspect WebAssembly Artifact (WABT)")
+        act_wasm.triggered.connect(lambda: self._run_extended_tool("inspect-wasm-artifact"))
+
+        menu_more.addSeparator()
+
+        act_apk_classes = menu_more.addAction("Search Android Classes (APK)")
+        act_apk_classes.triggered.connect(lambda: self._run_extended_tool("search-android-classes"))
+
+        act_apk_graph = menu_more.addAction("Project Android Application Graph")
+        act_apk_graph.triggered.connect(lambda: self._run_extended_tool("project-android-application-graph"))
+
+        act_adb_devices = menu_more.addAction("List Connected ADB Devices")
+        act_adb_devices.triggered.connect(lambda: self._run_global_tool("list-adb-devices"))
+
+        menu_more.addSeparator()
+
+        act_js = menu_more.addAction("Recover JavaScript Sources (CDP)")
+        act_js.triggered.connect(lambda: self._run_extended_tool("recover-javascript-sources"))
+
+        act_frida = menu_more.addAction("List Frida Devices")
+        act_frida.triggered.connect(lambda: self._run_global_tool("list-frida-devices"))
+
+        menu_more.addSeparator()
+
+        act_custom = menu_more.addAction("Run Custom REA Command...")
+        act_custom.triggered.connect(self._open_custom_command_dialog)
+
+        btn_more.setMenu(menu_more)
+        actions_layout.addWidget(btn_more)
+
         actions_layout.addStretch()
 
-        btn_auto_ai = QPushButton("🤖 Auto-Analyze with Electra")
+        btn_auto_ai = QPushButton("Auto-Analyze with Electra")
+        btn_auto_ai.setObjectName("btn_auto_ai")
         btn_auto_ai.setProperty("class", "primary")
         btn_auto_ai.clicked.connect(self.action_auto_analyze)
         actions_layout.addWidget(btn_auto_ai)
@@ -1081,10 +1306,14 @@ class ReaMainWindow(QMainWindow):
         v_welcome.setSpacing(14)
         v_welcome.setContentsMargins(40, 40, 40, 40)
 
-        lbl_hero_icon = QLabel("📁")
-        lbl_hero_icon.setStyleSheet("font-size: 54px;")
-        lbl_hero_icon.setAlignment(Qt.AlignCenter)
-        v_welcome.addWidget(lbl_hero_icon)
+        lbl_hero_badge = QLabel("REA")
+        lbl_hero_badge.setStyleSheet(
+            "font-size: 28px; font-weight: 900; color: #2563EB; "
+            "background-color: #EFF6FF; border: 2px solid #BFDBFE; "
+            "border-radius: 12px; padding: 6px 22px;"
+        )
+        lbl_hero_badge.setAlignment(Qt.AlignCenter)
+        v_welcome.addWidget(lbl_hero_badge, 0, Qt.AlignCenter)
 
         lbl_hero_title = QLabel("Select a Binary to Begin Reverse Engineering")
         lbl_hero_title.setStyleSheet("font-size: 20px; font-weight: 700; color: #1E293B;")
@@ -1100,7 +1329,8 @@ class ReaMainWindow(QMainWindow):
         v_welcome.addWidget(lbl_hero_sub)
 
         # Big, Center Browse Button
-        btn_hero_browse = QPushButton("📂 Browse & Select Binary File... (Ctrl+O)")
+        btn_hero_browse = QPushButton("Browse & Select Binary File... (Ctrl+O)")
+        btn_hero_browse.setObjectName("btn_hero_browse")
         btn_hero_browse.setProperty("class", "primary")
         btn_hero_browse.setCursor(QCursor(Qt.PointingHandCursor))
         btn_hero_browse.setFixedHeight(44)
@@ -1165,6 +1395,13 @@ class ReaMainWindow(QMainWindow):
         self.tab_hex.setProperty("class", "code-view")
         self.tab_hex.setPlaceholderText("Hexadecimal byte dump will appear here...")
         self.tabs.addTab(self.tab_hex, "Hex View")
+
+        # Tab 6: Tool Output
+        self.tab_raw = QPlainTextEdit()
+        self.tab_raw.setReadOnly(True)
+        self.tab_raw.setProperty("class", "code-view")
+        self.tab_raw.setPlaceholderText("Output from extended tools and custom commands will appear here...")
+        self.tabs.addTab(self.tab_raw, "Tool Output")
 
         layout.addWidget(self.tabs)
         return card
@@ -1292,6 +1529,7 @@ class ReaMainWindow(QMainWindow):
         v_btns = QVBoxLayout()
         v_btns.setSpacing(4)
         self.btn_send = QPushButton("Send")
+        self.btn_send.setObjectName("btn_send")
         self.btn_send.setProperty("class", "primary")
         self.btn_send.setFixedHeight(28)
         self.btn_send.clicked.connect(self._on_send_clicked)
@@ -1557,6 +1795,9 @@ class ReaMainWindow(QMainWindow):
             self.stack_overview.setCurrentIndex(1)
             self.tab_overview.append("\n\n" + "="*50 + "\nSECURITY AUDIT RESULTS:\n" + "="*50 + "\n" + output)
             self.tabs.setCurrentIndex(0)
+        elif command_id == "custom_tool":
+            self.tab_raw.setPlainText(output)
+            self.tabs.setCurrentWidget(self.tab_raw)
         elif command_id == "auto_analyze":
             self.stack_overview.setCurrentIndex(1)
             self.tab_overview.setText(output)
@@ -1608,6 +1849,26 @@ class ReaMainWindow(QMainWindow):
             return
         self.append_log(f"Initiating automated multi-step analysis for {self.target_path}...", "run")
         self._run_tool_command("auto_analyze", ["inspect-with-objdump", self.target_path, "file_headers"])
+
+    def _run_extended_tool(self, cmd_name: str, extra_flags: Optional[List[str]] = None):
+        if not self._ensure_target():
+            return
+        flags = [cmd_name, self.target_path]
+        if extra_flags:
+            flags.extend(extra_flags)
+        self.append_log(f"Running {cmd_name} on {self.target_path}...", "run")
+        self._run_tool_command("custom_tool", flags)
+
+    def _run_global_tool(self, cmd_name: str):
+        self.append_log(f"Executing REA command: {cmd_name}...", "run")
+        self._run_tool_command("custom_tool", [cmd_name])
+
+    def _open_custom_command_dialog(self):
+        dlg = CustomCommandDialog(self, target_path=self.target_path)
+        if dlg.exec_() == QDialog.Accepted and dlg.selected_command:
+            cmd_line = " ".join(dlg.selected_command)
+            self.append_log(f"Executing custom REA command: {cmd_line}", "run")
+            self._run_tool_command("custom_tool", dlg.selected_command)
 
     # ─────────────────────────────────────────────────────────────────────────
     #  ELECTRA AI INTERACTION
@@ -1697,7 +1958,7 @@ class ReaMainWindow(QMainWindow):
         self.btn_stop.setEnabled(False)
 
     def _on_ai_failed(self, error_msg: str):
-        self.append_chat_message("assistant", f"⚠️ **Electra AI Error:** {error_msg}")
+        self.append_chat_message("assistant", f"**Electra AI Error:** {error_msg}")
         self.lbl_ai_status.setText("Error")
         self.lbl_ai_status.setStyleSheet("color: #EF4444; font-size: 11px; font-weight: 600;")
         self.btn_send.setEnabled(True)
