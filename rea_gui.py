@@ -703,6 +703,118 @@ class SettingsDialog(QDialog):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  ABOUT DIALOG
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AboutDialog(QDialog):
+    """About dialog highlighting MakuluLinux Rea branding, upstream attribution, and links."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("About MakuluLinux Rea")
+        self.setFixedWidth(540)
+        self.setStyleSheet(LIGHT_THEME_QSS)
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        # Header with Logo & Titles
+        h_header = QHBoxLayout()
+        h_header.setSpacing(14)
+
+        if ICON_PATH and os.path.isfile(ICON_PATH):
+            lbl_icon = QLabel()
+            pix = QPixmap(ICON_PATH)
+            if not pix.isNull():
+                lbl_icon.setPixmap(pix.scaled(56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                h_header.addWidget(lbl_icon)
+
+        v_titles = QVBoxLayout()
+        v_titles.setSpacing(2)
+
+        lbl_app_name = QLabel("MakuluLinux Rea")
+        lbl_app_name.setStyleSheet("font-size: 22px; font-weight: 800; color: #1E293B;")
+        v_titles.addWidget(lbl_app_name)
+
+        lbl_fork = QLabel("forked from morluto/rea")
+        lbl_fork.setStyleSheet("font-size: 12px; font-style: italic; color: #64748B; font-weight: 500;")
+        v_titles.addWidget(lbl_fork)
+
+        h_header.addLayout(v_titles)
+        h_header.addStretch()
+        layout.addLayout(h_header)
+
+        # Divider
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet("color: #E2E8F0;")
+        layout.addWidget(line)
+
+        # Description
+        lbl_desc = QLabel(
+            "<b>MakuluLinux Rea (Reverse Engineer Anything)</b> is an intelligent, multi-engine "
+            "binary reverse engineering studio powered by Electra AI Center.<br><br>"
+            "Inspect native executables, disassemble machine code with GNU objdump and radare2, "
+            "decompile functions with Ghidra & RetDec, extract strings, audit security mitigations, "
+            "and interact with the real-time Electra AI Copilot."
+        )
+        lbl_desc.setWordWrap(True)
+        lbl_desc.setStyleSheet("font-size: 13px; color: #334155; line-height: 1.5;")
+        layout.addWidget(lbl_desc)
+
+        # Links Card
+        grp_links = QFrame()
+        grp_links.setProperty("class", "card")
+        grp_links.setStyleSheet(
+            "background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 14px;"
+        )
+        v_links = QVBoxLayout(grp_links)
+        v_links.setSpacing(10)
+
+        # Website
+        lbl_web = QLabel(
+            "<b>Website:</b> <a href='https://makululinux.com' style='color: #2563EB; font-weight: 600; text-decoration: none;'>https://makululinux.com</a>"
+        )
+        lbl_web.setOpenExternalLinks(True)
+        lbl_web.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        v_links.addWidget(lbl_web)
+
+        # Patreon
+        lbl_patreon = QLabel(
+            "<b>Patreon:</b> <a href='https://www.patreon.com/makululinux' style='color: #2563EB; font-weight: 600; text-decoration: none;'>https://www.patreon.com/makululinux</a>"
+        )
+        lbl_patreon.setOpenExternalLinks(True)
+        lbl_patreon.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        v_links.addWidget(lbl_patreon)
+
+        # Discord
+        lbl_discord = QLabel(
+            "<b>Discord:</b> <a href='https://discord.gg/UerQvq2hTm' style='color: #2563EB; font-weight: 600; text-decoration: none;'>https://discord.gg/UerQvq2hTm</a>"
+        )
+        lbl_discord.setOpenExternalLinks(True)
+        lbl_discord.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        v_links.addWidget(lbl_discord)
+
+        layout.addWidget(grp_links)
+
+        # Dialog Buttons
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+
+        btn_close = QPushButton("Close")
+        btn_close.setProperty("class", "primary")
+        btn_close.setFixedWidth(90)
+        btn_close.clicked.connect(self.accept)
+        btn_box.addWidget(btn_close)
+
+        layout.addLayout(btn_box)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  MAIN WINDOW
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -711,7 +823,7 @@ class ReaMainWindow(QMainWindow):
 
     def __init__(self, target_file: Optional[str] = None):
         super().__init__()
-        self.setWindowTitle("REA — Reverse Engineering Anything (Electra AI)")
+        self.setWindowTitle("MakuluLinux Rea — Reverse Engineering Anything (Electra AI)")
         self.resize(1280, 840)
         self.setMinimumSize(960, 640)
         self.setStyleSheet(LIGHT_THEME_QSS)
@@ -812,7 +924,7 @@ class ReaMainWindow(QMainWindow):
 
         h_title = QHBoxLayout()
         h_title.setSpacing(8)
-        lbl_title = QLabel("REA")
+        lbl_title = QLabel("MakuluLinux Rea")
         lbl_title.setObjectName("AppTitle")
         badge = QLabel("ELECTRA AI")
         badge.setObjectName("BadgePill")
@@ -820,8 +932,9 @@ class ReaMainWindow(QMainWindow):
         h_title.addWidget(badge)
         h_title.addStretch()
 
-        lbl_sub = QLabel("Reverse Engineering Anything • Automated Binary Analysis & AI Copilot")
+        lbl_sub = QLabel("forked from morluto/rea • Reverse Engineering Anything")
         lbl_sub.setObjectName("AppSubtitle")
+        lbl_sub.setStyleSheet("font-size: 11px; font-style: italic; color: #64748B; font-weight: 500;")
 
         v_title.addLayout(h_title)
         v_title.addWidget(lbl_sub)
@@ -851,6 +964,11 @@ class ReaMainWindow(QMainWindow):
         btn_settings = QPushButton("⚙ Settings")
         btn_settings.clicked.connect(self._open_settings)
         layout.addWidget(btn_settings)
+
+        # About Button
+        btn_about = QPushButton("ℹ About")
+        btn_about.clicked.connect(self._open_about)
+        layout.addWidget(btn_about)
 
         return header
 
@@ -1599,6 +1717,10 @@ class ReaMainWindow(QMainWindow):
         if dlg.exec_() == QDialog.Accepted:
             self.settings = load_gui_settings()
             self.append_log("Settings updated successfully.", "info")
+
+    def _open_about(self):
+        dlg = AboutDialog(self)
+        dlg.exec_()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
