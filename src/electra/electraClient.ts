@@ -40,7 +40,7 @@ export interface ToolDefinition {
 
 const DEFAULT_PRIMARY_URL = "https://makululinux.us:2007/v1/chat/completions";
 const DEFAULT_FALLBACK_URL = "https://api.makululinux.us/v1/chat/completions";
-const DEFAULT_MODEL = "electra";
+const DEFAULT_MODEL = "electra-nano";
 
 /** Resolve the user's Electra AI Center API key from environment, config, or prompt. */
 export async function resolveElectraApiKey(

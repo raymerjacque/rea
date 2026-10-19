@@ -3,12 +3,12 @@
 rea_gui.py — Desktop GUI for REA (Reverse Engineering Anything)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Light-themed, modern PyQt5 desktop interface integrated with Electra AI Center:
-  • Binary File Selector & Drag-and-Drop Loader
+  • Prominent Binary Browser & Drag-and-Drop Loader
   • Quick Action Bar (Inspect, Disassemble, Decompile, Strings, Security Audit, Auto-Analyze)
   • Analysis Tabs (Overview, Disassembly, Decompiled C, Strings & Symbols, Hex View)
   • Real-Time Live Execution Log with streaming stdout/stderr
   • Interactive Electra AI Copilot with multi-turn chat & reverse engineering prompts
-  • Model Selection & API Settings (Auto-detects MakuluLinux / Electra credentials)
+  • Model Selection & API Settings (Defaults to Electra Nano)
 """
 
 import os
@@ -28,7 +28,8 @@ from PyQt5.QtWidgets import (
     QTextEdit, QPlainTextEdit, QScrollArea, QSizePolicy, QDialog,
     QMessageBox, QProgressBar, QSplitter, QTabWidget, QComboBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QCheckBox,
-    QFileDialog, QMenu, QAction, QGroupBox, QSpinBox, QDoubleSpinBox
+    QFileDialog, QMenu, QAction, QGroupBox, QSpinBox, QDoubleSpinBox,
+    QShortcut
 )
 from PyQt5.QtGui import (
     QFont, QColor, QPalette, QIcon, QCursor, QPixmap,
@@ -53,9 +54,9 @@ ELECTRA_API_KEY_FILE = os.path.expanduser("~/.config/electra/api_key")
 ICON_PATH = "/home/jacque/AI-center/ai-icon.png"
 
 AVAILABLE_MODELS = [
-    ("electra", "Electra AI (Cloud Flagship - Recommended)"),
+    ("electra-nano", "Electra Nano (Default - Fast / Low Latency)"),
+    ("electra", "Electra AI (Cloud Flagship)"),
     ("qwen3.8-coder", "Qwen 3.8 Coder (Reverse Engineering & Code Specialist)"),
-    ("electra-nano", "Electra Nano (Low Latency / Fast Responses)"),
 ]
 
 
@@ -95,11 +96,11 @@ def discover_electra_api_key() -> str:
 
 
 def load_gui_settings() -> Dict[str, Any]:
-    """Loads GUI configuration from disk."""
+    """Loads GUI configuration from disk, defaulting model to electra-nano."""
     default_settings = {
         "server_base": DEFAULT_SERVER_BASE,
         "api_key": discover_electra_api_key(),
-        "model": "electra",
+        "model": "electra-nano",
         "temperature": 0.3,
         "rea_bin": REA_BIN_PATH,
         "auto_scroll_log": True,
@@ -113,8 +114,11 @@ def load_gui_settings() -> Dict[str, Any]:
         except Exception:
             pass
 
-    if not default_settings["api_key"]:
+    if not default_settings.get("api_key"):
         default_settings["api_key"] = discover_electra_api_key()
+
+    if not default_settings.get("model"):
+        default_settings["model"] = "electra-nano"
 
     return default_settings
 
@@ -344,21 +348,6 @@ QScrollBar::handle:horizontal {
     background: #CBD5E1;
     border-radius: 4px;
     min-width: 20px;
-}
-
-/* Tables */
-QTableWidget {
-    background-color: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    gridline-color: #F1F5F9;
-}
-
-QHeaderView::section {
-    background-color: #F8FAFC;
-    color: #475569;
-    padding: 6px 8px;
-    border: 1px solid #E2E8F0;
-    font-weight: 600;
 }
 
 /* Splitter */
@@ -696,6 +685,10 @@ class ReaMainWindow(QMainWindow):
 
         self._init_ui()
 
+        # Keyboard Shortcut: Ctrl+O to browse binary
+        self.shortcut_open = QShortcut(QKeySequence("Ctrl+O"), self)
+        self.shortcut_open.activated.connect(self._browse_target_file)
+
         # If binary supplied on CLI or drag/drop, inspect it immediately
         if self.target_path and os.path.isfile(self.target_path):
             self.set_target_file(self.target_path)
@@ -715,8 +708,8 @@ class ReaMainWindow(QMainWindow):
         # 1. Header Bar
         main_layout.addWidget(self._create_header_bar())
 
-        # 2. Target & Quick Action Bar
-        main_layout.addWidget(self._create_action_bar())
+        # 2. Prominent Target Selection Bar (with Browse button & input)
+        main_layout.addWidget(self._create_target_bar())
 
         # 3. Main Splitter (Left: Analysis Tabs + Log Box, Right: Electra AI Copilot)
         self.main_splitter = QSplitter(Qt.Horizontal)
@@ -793,19 +786,21 @@ class ReaMainWindow(QMainWindow):
 
         layout.addStretch()
 
-        # Model Selector Dropdown
+        # Model Selector Dropdown (Defaults to Electra Nano)
         lbl_model = QLabel("Model:")
         lbl_model.setStyleSheet("font-weight: 600; color: #475569;")
         layout.addWidget(lbl_model)
 
         self.combo_model = QComboBox()
-        self.combo_model.setFixedWidth(240)
+        self.combo_model.setFixedWidth(270)
         for model_id, model_label in AVAILABLE_MODELS:
             self.combo_model.addItem(model_label, model_id)
-        current_model = self.settings.get("model", "electra")
+        current_model = self.settings.get("model", "electra-nano")
         idx = self.combo_model.findData(current_model)
         if idx >= 0:
             self.combo_model.setCurrentIndex(idx)
+        else:
+            self.combo_model.setCurrentIndex(0)
         self.combo_model.currentIndexChanged.connect(self._on_model_changed)
         layout.addWidget(self.combo_model)
 
@@ -816,23 +811,35 @@ class ReaMainWindow(QMainWindow):
 
         return header
 
-    def _create_action_bar(self) -> QWidget:
+    def _create_target_bar(self) -> QWidget:
+        """Prominent Target Selection Bar with Browse button, path input, clear button, and format pills."""
         container = QFrame()
         container.setStyleSheet("background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0; padding: 6px 16px;")
         layout = QHBoxLayout(container)
         layout.setContentsMargins(16, 6, 16, 6)
         layout.setSpacing(10)
 
-        # Target Binary Selector
-        btn_open = QPushButton("📂 Open Binary...")
-        btn_open.setProperty("class", "primary")
-        btn_open.clicked.connect(self._browse_target_file)
-        layout.addWidget(btn_open)
+        # Prominent Browse Button
+        self.btn_browse = QPushButton("📂 Browse Binary... (Ctrl+O)")
+        self.btn_browse.setProperty("class", "primary")
+        self.btn_browse.setCursor(QCursor(Qt.PointingHandCursor))
+        self.btn_browse.setToolTip("Click to browse and open any binary or executable file on your computer")
+        self.btn_browse.clicked.connect(self._browse_target_file)
+        layout.addWidget(self.btn_browse)
 
-        self.lbl_target = QLabel("No binary loaded. Drag & drop a file here or click 'Open Binary...'")
-        self.lbl_target.setStyleSheet("font-weight: 500; color: #64748B; padding: 4px 8px;")
-        self.lbl_target.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        layout.addWidget(self.lbl_target)
+        # Path display and manual input box
+        self.txt_target_path = QLineEdit()
+        self.txt_target_path.setPlaceholderText("No binary selected — click Browse Binary... or drag & drop file here")
+        self.txt_target_path.setStyleSheet("font-weight: 500; color: #1E293B; padding: 6px 10px;")
+        self.txt_target_path.returnPressed.connect(self._on_target_path_entered)
+        layout.addWidget(self.txt_target_path, 1)
+
+        # Clear Button
+        self.btn_clear_target = QPushButton("✕ Clear")
+        self.btn_clear_target.setFixedHeight(30)
+        self.btn_clear_target.setToolTip("Unload current binary")
+        self.btn_clear_target.clicked.connect(self.clear_target_file)
+        layout.addWidget(self.btn_clear_target)
 
         # Target Format Pill
         self.badge_format = QLabel("FORMAT: NONE")
@@ -903,12 +910,72 @@ class ReaMainWindow(QMainWindow):
         # Tab Widget
         self.tabs = QTabWidget()
 
-        # Tab 1: Overview
+        # Tab 1: Overview (Stacked Widget: Page 0 = Welcome / Browse Dropzone, Page 1 = Full Overview)
+        self.stack_overview = QStackedWidget()
+
+        # Page 0: Welcome / Browse Hero Card
+        page_welcome = QWidget()
+        v_welcome = QVBoxLayout(page_welcome)
+        v_welcome.setAlignment(Qt.AlignCenter)
+        v_welcome.setSpacing(14)
+        v_welcome.setContentsMargins(40, 40, 40, 40)
+
+        lbl_hero_icon = QLabel("📁")
+        lbl_hero_icon.setStyleSheet("font-size: 54px;")
+        lbl_hero_icon.setAlignment(Qt.AlignCenter)
+        v_welcome.addWidget(lbl_hero_icon)
+
+        lbl_hero_title = QLabel("Select a Binary to Begin Reverse Engineering")
+        lbl_hero_title.setStyleSheet("font-size: 20px; font-weight: 700; color: #1E293B;")
+        lbl_hero_title.setAlignment(Qt.AlignCenter)
+        v_welcome.addWidget(lbl_hero_title)
+
+        lbl_hero_sub = QLabel(
+            "Browse your system for any executable, shared library, or binary file (ELF, PE, Mach-O, APK, WASM),\n"
+            "or simply drag and drop the file directly onto this window."
+        )
+        lbl_hero_sub.setStyleSheet("font-size: 13px; color: #64748B; line-height: 1.5;")
+        lbl_hero_sub.setAlignment(Qt.AlignCenter)
+        v_welcome.addWidget(lbl_hero_sub)
+
+        # Big, Center Browse Button
+        btn_hero_browse = QPushButton("📂 Browse & Select Binary File... (Ctrl+O)")
+        btn_hero_browse.setProperty("class", "primary")
+        btn_hero_browse.setCursor(QCursor(Qt.PointingHandCursor))
+        btn_hero_browse.setFixedHeight(44)
+        btn_hero_browse.setFixedWidth(320)
+        btn_hero_browse.setStyleSheet("font-size: 14px; font-weight: 700;")
+        btn_hero_browse.clicked.connect(self._browse_target_file)
+        v_welcome.addWidget(btn_hero_browse, 0, Qt.AlignCenter)
+
+        # Sample Quick Test Button
+        h_samples = QHBoxLayout()
+        h_samples.setSpacing(10)
+        lbl_try = QLabel("Quick Test:")
+        lbl_try.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        h_samples.addWidget(lbl_try)
+
+        btn_sample_ls = QPushButton("Load /bin/ls")
+        btn_sample_ls.setProperty("class", "chip")
+        btn_sample_ls.clicked.connect(lambda: self.set_target_file("/bin/ls") or self.action_inspect_headers())
+        h_samples.addWidget(btn_sample_ls)
+
+        btn_sample_bash = QPushButton("Load /bin/bash")
+        btn_sample_bash.setProperty("class", "chip")
+        btn_sample_bash.clicked.connect(lambda: self.set_target_file("/bin/bash") or self.action_inspect_headers())
+        h_samples.addWidget(btn_sample_bash)
+
+        v_welcome.addLayout(h_samples)
+        self.stack_overview.addWidget(page_welcome)
+
+        # Page 1: Loaded Overview Viewer
         self.tab_overview = QTextEdit()
         self.tab_overview.setReadOnly(True)
         self.tab_overview.setProperty("class", "code-view")
         self.tab_overview.setPlaceholderText("Binary overview, sections, and hashes will appear here...")
-        self.tabs.addTab(self.tab_overview, "Overview")
+        self.stack_overview.addWidget(self.tab_overview)
+
+        self.tabs.addTab(self.stack_overview, "Overview")
 
         # Tab 2: Disassembly
         self.tab_disasm = QPlainTextEdit()
@@ -1100,17 +1167,44 @@ class ReaMainWindow(QMainWindow):
                 self.action_inspect_headers()
 
     def _browse_target_file(self):
+        start_dir = os.path.dirname(self.target_path) if self.target_path else os.path.expanduser("~")
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select Binary to Reverse Engineer", self.target_path or os.path.expanduser("~")
+            self,
+            "Select Binary or Executable to Reverse Engineer",
+            start_dir,
+            "Executable / Binary Files (*);;All Files (*)"
         )
         if path and os.path.isfile(path):
             self.set_target_file(path)
             self.action_inspect_headers()
 
+    def _on_target_path_entered(self):
+        path = self.txt_target_path.text().strip()
+        if path and os.path.isfile(path):
+            self.set_target_file(path)
+            self.action_inspect_headers()
+        elif path:
+            QMessageBox.warning(self, "Invalid File", f"File does not exist:\n{path}")
+
+    def clear_target_file(self):
+        self.target_path = ""
+        self.txt_target_path.clear()
+        self.badge_format.setText("FORMAT: NONE")
+        self.badge_size.setText("SIZE: 0 B")
+        self.tab_overview.clear()
+        self.tab_disasm.clear()
+        self.tab_decomp.clear()
+        self.tab_strings.clear()
+        self.tab_hex.clear()
+        self.stack_overview.setCurrentIndex(0)
+        self.append_log("Target cleared.", "info")
+
     def set_target_file(self, path: str):
         self.target_path = os.path.abspath(path)
-        self.lbl_target.setText(f"Target: {self.target_path}")
-        self.lbl_target.setStyleSheet("font-weight: 600; color: #1E293B;")
+        self.txt_target_path.setText(self.target_path)
+
+        # Switch Overview stack to Page 1 (Loaded View)
+        self.stack_overview.setCurrentIndex(1)
 
         # Update file size
         try:
@@ -1265,8 +1359,9 @@ class ReaMainWindow(QMainWindow):
 
     def _ensure_target(self) -> bool:
         if not self.target_path or not os.path.isfile(self.target_path):
-            QMessageBox.warning(self, "No Target Loaded", "Please select or drag-and-drop a binary file first.")
-            return False
+            QMessageBox.warning(self, "No Target Loaded", "Please browse and select a binary file first.")
+            self._browse_target_file()
+            return bool(self.target_path and os.path.isfile(self.target_path))
         return True
 
     def _run_tool_command(self, command_id: str, args: List[str]):
@@ -1285,6 +1380,7 @@ class ReaMainWindow(QMainWindow):
 
     def _on_tool_completed(self, command_id: str, output: str):
         if command_id == "inspect_headers":
+            self.stack_overview.setCurrentIndex(1)
             self.tab_overview.setText(output)
             self.tabs.setCurrentIndex(0)
         elif command_id == "disassemble":
@@ -1297,9 +1393,11 @@ class ReaMainWindow(QMainWindow):
             self.tab_strings.setText(output)
             self.tabs.setCurrentIndex(3)
         elif command_id == "security_audit":
+            self.stack_overview.setCurrentIndex(1)
             self.tab_overview.append("\n\n" + "="*50 + "\nSECURITY AUDIT RESULTS:\n" + "="*50 + "\n" + output)
             self.tabs.setCurrentIndex(0)
         elif command_id == "auto_analyze":
+            self.stack_overview.setCurrentIndex(1)
             self.tab_overview.setText(output)
             self.tabs.setCurrentIndex(0)
             # Feed result to Electra AI
@@ -1388,7 +1486,7 @@ class ReaMainWindow(QMainWindow):
 
         server_base = self.settings.get("server_base", DEFAULT_SERVER_BASE)
         api_key = self.settings.get("api_key") or discover_electra_api_key()
-        model = self.settings.get("model", "electra")
+        model = self.settings.get("model", "electra-nano")
 
         # Build context from current binary and active tab
         active_tab_idx = self.tabs.currentIndex()

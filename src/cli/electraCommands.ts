@@ -150,9 +150,9 @@ export const registerElectraCommands = (
       ),
     model: z
       .string()
-      .default("electra")
+      .default("electra-nano")
       .describe(
-        "Model identifier (default: electra, electra-nano, qwen3.8-coder)",
+        "Model identifier (default: electra-nano, electra, qwen3.8-coder)",
       ),
     url: z
       .string()
