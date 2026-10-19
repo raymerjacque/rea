@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=REA - Reverse Engineering Anything
+GenericName=Reverse Engineering AI Studio
+Comment=Analyze, disassemble, decompile binaries and chat with Electra AI Copilot
+Exec=/home/jacque/AI-center/rea/rea
+Icon=/home/jacque/AI-center/ai-icon.png
+Terminal=false
+Categories=Development;Engineering;Security;Utility;
+Keywords=reverse;engineering;decompiler;disassembler;ghidra;electra;ai;
+StartupNotify=true
