@@ -40,10 +40,54 @@ from PyQt5.QtGui import (
 #  DEFAULT CONFIGURATION & PATHS
 # ─────────────────────────────────────────────────────────────────────────────
 
+def get_rea_bin_path() -> str:
+    """Dynamically resolves the path to the rea.bin executable."""
+    if os.environ.get("REA_BIN_PATH") and os.path.isfile(os.environ["REA_BIN_PATH"]):
+        return os.environ["REA_BIN_PATH"]
+
+    onefile_dir = os.environ.get("NUITKA_ONEFILE_DIRECTORY")
+    if onefile_dir:
+        cand = os.path.join(onefile_dir, "rea.bin")
+        if os.path.isfile(cand):
+            try:
+                os.chmod(cand, 0o755)
+            except Exception:
+                pass
+            return cand
+
+    exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    for name in ("rea.bin", "rea"):
+        cand = os.path.join(exe_dir, name)
+        if os.path.isfile(cand) and cand != os.path.abspath(sys.argv[0]):
+            return cand
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    for name in ("rea.bin", "rea"):
+        cand = os.path.join(script_dir, name)
+        if os.path.isfile(cand) and cand != os.path.abspath(sys.argv[0]):
+            return cand
+
+    known_path = "/home/jacque/AI-center/rea/rea.bin"
+    if os.path.isfile(known_path):
+        return known_path
+
+    return "rea"
+
+def get_icon_path() -> str:
+    """Resolves icon path in standalone onefile mode or development."""
+    onefile_dir = os.environ.get("NUITKA_ONEFILE_DIRECTORY")
+    if onefile_dir:
+        cand = os.path.join(onefile_dir, "ai-icon.png")
+        if os.path.isfile(cand):
+            return cand
+    for p in ("/home/jacque/AI-center/ai-icon.png", os.path.join(os.path.dirname(os.path.abspath(__file__)), "ai-icon.png")):
+        if os.path.isfile(p):
+            return p
+    return ""
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REA_BIN_PATH = os.path.join(SCRIPT_DIR, "rea.bin")
-if not os.path.isfile(REA_BIN_PATH):
-    REA_BIN_PATH = os.path.join(SCRIPT_DIR, "rea")
+REA_BIN_PATH = get_rea_bin_path()
+ICON_PATH = get_icon_path()
 
 DEFAULT_SERVER_BASE = "https://makululinux.us:2007"
 FALLBACK_SERVER_BASE = "https://api.makululinux.us"
@@ -51,7 +95,6 @@ CONFIG_DIR = os.path.expanduser("~/.config/rea")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "gui_settings.json")
 ELECTRA_AUTH_FILE = os.path.expanduser("~/.config/ai_terminal/electra_auth.json")
 ELECTRA_API_KEY_FILE = os.path.expanduser("~/.config/electra/api_key")
-ICON_PATH = "/home/jacque/AI-center/ai-icon.png"
 
 AVAILABLE_MODELS = [
     ("electra-nano", "Electra Nano (Default - Fast / Low Latency)"),
