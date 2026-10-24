@@ -770,7 +770,7 @@ class AboutDialog(QDialog):
         lbl_app_name.setStyleSheet("font-size: 22px; font-weight: 800; color: #1E293B;")
         v_titles.addWidget(lbl_app_name)
 
-        lbl_fork = QLabel("forked from morluto/rea")
+        lbl_fork = QLabel("forked from morluto/rea • Engine v6.7.0")
         lbl_fork.setStyleSheet("font-size: 12px; font-style: italic; color: #64748B; font-weight: 500;")
         v_titles.addWidget(lbl_fork)
 
@@ -788,9 +788,10 @@ class AboutDialog(QDialog):
         # Description
         lbl_desc = QLabel(
             "<b>MakuluLinux Rea (Reverse Engineer Anything)</b> is an intelligent, multi-engine "
-            "binary reverse engineering studio powered by Electra AI Center.<br><br>"
-            "Inspect native executables, disassemble machine code with GNU objdump and radare2, "
-            "decompile functions with Ghidra & RetDec, extract strings, audit security mitigations, "
+            "reverse engineering studio powered by Electra AI Center.<br><br>"
+            "Inspect native ELF, PE, Mach-O binaries, Go/Rust runtimes, Unity IL2CPP games, "
+            "AI models, GPU code objects, Android APKs, WebAssembly, and bytecode. Disassemble with objdump "
+            "and radare2, decompile functions with Ghidra & RetDec, analyze byte entropy, audit security mitigations, "
             "and interact with the real-time Electra AI Copilot."
         )
         lbl_desc.setWordWrap(True)
@@ -851,21 +852,46 @@ class AboutDialog(QDialog):
 # ─────────────────────────────────────────────────────────────────────────────
 
 REA_ALL_COMMANDS = [
-    # Binary & Disassembly
+    # Core Binary Analysis & Diagnostics
     ("inspect-with-objdump", "Headers, sections, disassembly, and symbols via GNU objdump"),
     ("analyze-with-radare2", "Functions, basic blocks, control flow graphs, xrefs via Radare2"),
     ("decompile-with-ghidra", "Decompile binary functions into readable C via Ghidra"),
     ("decompile-with-retdec", "Decompile binary functions into high-level C via RetDec"),
-    ("inspect-elf-dependencies", "ELF dynamic libraries, DT_NEEDED, and security hardening"),
-    ("inspect-pe-headers", "Windows PE DOS/NT headers, imports, exports, and sections"),
-    ("inspect-macho-headers", "Apple Mach-O headers, load commands, and dylib resolution"),
-    ("inspect-wasm-artifact", "Disassemble and inspect WebAssembly artifacts with WABT"),
+    ("decompile-all", "Batch decompile all functions into pseudocode directory"),
+    ("inspect-byte-entropy", "Compute Shannon entropy across offsets to find packed/encrypted regions"),
+    ("inspect-binary-layout", "Analyze section layout, virtual memory alignment, and address mapping"),
+    ("match-native-functions", "Match and compare functions across binaries or signatures"),
     ("instructions", "Read raw machine instructions without decompiling"),
     ("read-bytes", "Read raw memory bytes at an analysis address"),
     ("search-bytes", "Search for masked byte patterns in initialized memory"),
     ("search", "Search all analyzed strings and procedure names"),
     ("xrefs", "List references and cross-references to an address"),
+
+    # Windows PE Analysis
+    ("inspect-pe-headers", "Windows PE DOS/NT headers, imports, exports, and sections"),
+    ("inspect-pe-resources", "Inspect Windows PE resources (.rsrc, dialogs, icons, manifests)"),
+    ("inspect-pe-certificates", "Inspect Authenticode digital signatures and certificate chains"),
+    ("inspect-pe-imports", "Inspect PE Import Address Table (IAT) and delay-loaded imports"),
+    ("inspect-native-exports", "Inspect exported native functions, names, and ordinals"),
+
+    # Linux & ELF Analysis
+    ("inspect-elf-dependencies", "ELF dynamic libraries, DT_NEEDED, and security hardening"),
+    ("inspect-elf-notes", "Inspect ELF build notes, build ID, ABI tags, and GNU properties"),
+
+    # Languages, Runtimes & Frameworks
+    ("inspect-go-binary", "Inspect Go binaries, gopclntab, functions, types, and goroutines"),
+    ("inspect-rust-binary", "Inspect Rust binaries, demangled signatures, and crate metadata"),
+    ("inspect-il2cpp-metadata", "Inspect Unity IL2CPP game assemblies and global-metadata.dat"),
+    ("inspect-python-pyc", "Inspect Python compiled bytecode (.pyc) structure and instructions"),
+    ("inspect-erlang-beam", "Inspect Erlang BEAM bytecode chunks, exports, and atoms"),
+
+    # AI Models & GPU Shaders
+    ("inspect-model-artifact", "Inspect AI model architecture, weights, ONNX, GGUF, SafeTensors"),
+    ("inspect-gpu-code-objects", "Inspect GPU binaries, SPIR-V, DXBC, Metal, and CUDA cubins"),
+
     # Android & Mobile
+    ("inspect-apk-signature", "Inspect APK v1/v2/v3/v4 signing schemes, fingerprints, certificates"),
+    ("decode-android-resources", "Decode APK manifest, resource tables, and strings via apktool"),
     ("search-android-classes", "Search and inventory APK DEX classes and structures"),
     ("project-android-application-graph", "Project APK inventory into Android application graph"),
     ("list-adb-devices", "List connected Android physical devices and emulators"),
@@ -874,17 +900,25 @@ REA_ALL_COMMANDS = [
     ("install-adb-package", "Install local APK onto connected Android device"),
     ("pull-adb-package", "Pull installed APK set from connected Android device"),
     ("start-adb-app", "Start launcher activity of installed Android package"),
-    # Web & JavaScript
+
+    # Apple & macOS / iOS
+    ("inspect-macho-headers", "Apple Mach-O headers, load commands, and dylib resolution"),
+    ("inspect-apple-ips", "Inspect Apple IPS crash report files, threads, and stacktraces"),
+    ("demangle-swift", "Demangle Swift symbols and types"),
+    ("observe-native-calls", "Record entries into functions or Obj-C methods under LLDB"),
+
+    # Web, JavaScript & WebAssembly
+    ("inspect-wasm-artifact", "Disassemble and inspect WebAssembly artifacts with WABT"),
     ("inspect-web-page", "Inspect active page DOM and listeners through Chrome DevTools Protocol"),
     ("inspect-web-network-capture", "Inspect captured HAR, mitmproxy, or Fiddler network records"),
     ("recover-javascript-sources", "Recover readable JavaScript modules with source provenance"),
     ("list-browser-targets", "List active CDP browser pages and targets"),
     ("list-electron-targets", "List local targets exposed by Electron CDP endpoints"),
-    # Dynamic Instrumentation & Frida
+
+    # Dynamic Hooking & Frida
     ("instrument-with-frida", "Run dynamic Frida script against target process"),
     ("list-frida-devices", "List local and remote Frida devices"),
     ("list-frida-processes", "List processes visible through Frida device"),
-    ("observe-native-calls", "Record entries into functions or Obj-C methods under LLDB"),
 ]
 
 
@@ -1231,52 +1265,71 @@ class ReaMainWindow(QMainWindow):
         btn_audit.clicked.connect(self.action_security_audit)
         actions_layout.addWidget(btn_audit)
 
-        # More Tools Dropdown Menu (Direct access to all 80+ REA subcommands)
+        # More Tools Dropdown Menu (Direct categorized access to all specialized REA subcommands)
         btn_more = QPushButton("More Tools ▾")
         btn_more.setProperty("class", "action")
         menu_more = QMenu(self)
 
-        act_retdec = menu_more.addAction("Decompile with RetDec")
-        act_retdec.triggered.connect(lambda: self._run_extended_tool("decompile-with-retdec"))
+        # 1. Windows PE Submenu
+        menu_pe = menu_more.addMenu("Windows PE Tools")
+        menu_pe.addAction("Inspect PE Headers", lambda: self._run_extended_tool("inspect-pe-headers"))
+        menu_pe.addAction("Inspect PE Resources & Manifests", lambda: self._run_extended_tool("inspect-pe-resources"))
+        menu_pe.addAction("Inspect PE Digital Certificates", lambda: self._run_extended_tool("inspect-pe-certificates"))
+        menu_pe.addAction("Inspect PE Import Address Table (IAT)", lambda: self._run_extended_tool("inspect-pe-imports"))
+        menu_pe.addAction("Inspect Native Exported Symbols", lambda: self._run_extended_tool("inspect-native-exports"))
 
-        act_r2 = menu_more.addAction("Analyze with Radare2")
-        act_r2.triggered.connect(lambda: self._run_extended_tool("analyze-with-radare2"))
+        # 2. Linux ELF Submenu
+        menu_elf = menu_more.addMenu("Linux ELF Tools")
+        menu_elf.addAction("Inspect Dynamic Libraries (DT_NEEDED)", lambda: self._run_extended_tool("inspect-elf-dependencies"))
+        menu_elf.addAction("Inspect ELF Notes & ABI Tags", lambda: self._run_extended_tool("inspect-elf-notes"))
 
-        act_objdump = menu_more.addAction("GNU objdump Disassembly")
-        act_objdump.triggered.connect(lambda: self._run_extended_tool("inspect-with-objdump", ["disassemble"]))
+        # 3. Languages & Frameworks Submenu
+        menu_lang = menu_more.addMenu("Languages & Frameworks")
+        menu_lang.addAction("Inspect Go Binary (pclntab & functions)", lambda: self._run_extended_tool("inspect-go-binary"))
+        menu_lang.addAction("Inspect Rust Binary (demangle & crates)", lambda: self._run_extended_tool("inspect-rust-binary"))
+        menu_lang.addAction("Inspect Unity IL2CPP Metadata", lambda: self._run_extended_tool("inspect-il2cpp-metadata"))
+        menu_lang.addAction("Inspect Python Bytecode (.pyc)", lambda: self._run_extended_tool("inspect-python-pyc"))
+        menu_lang.addAction("Inspect Erlang BEAM Bytecode", lambda: self._run_extended_tool("inspect-erlang-beam"))
+
+        # 4. Security & Entropy Diagnostics Submenu
+        menu_diag = menu_more.addMenu("Security & Entropy Diagnostics")
+        menu_diag.addAction("Analyze Byte Entropy (Packing/Encryption)", lambda: self._run_extended_tool("inspect-byte-entropy"))
+        menu_diag.addAction("Analyze Binary Layout & Alignment", lambda: self._run_extended_tool("inspect-binary-layout"))
+        menu_diag.addAction("Match Native Functions & Signatures", lambda: self._run_extended_tool("match-native-functions"))
+
+        # 5. Decompilation Engines Submenu
+        menu_decomp = menu_more.addMenu("Decompilation Engines")
+        menu_decomp.addAction("Batch Decompile All Functions", lambda: self._run_extended_tool("decompile-all"))
+        menu_decomp.addAction("Decompile with RetDec", lambda: self._run_extended_tool("decompile-with-retdec"))
+        menu_decomp.addAction("Analyze with Radare2", lambda: self._run_extended_tool("analyze-with-radare2"))
+        menu_decomp.addAction("GNU objdump Disassembly", lambda: self._run_extended_tool("inspect-with-objdump", ["disassemble"]))
+
+        # 6. AI Models & GPU Shaders Submenu
+        menu_ai_gpu = menu_more.addMenu("AI Models & GPU Shaders")
+        menu_ai_gpu.addAction("Inspect AI Model (ONNX / GGUF / SafeTensors)", lambda: self._run_extended_tool("inspect-model-artifact"))
+        menu_ai_gpu.addAction("Inspect GPU Code Objects / Shaders", lambda: self._run_extended_tool("inspect-gpu-code-objects"))
+
+        # 7. Android & Mobile Submenu
+        menu_android = menu_more.addMenu("Android & Mobile")
+        menu_android.addAction("Inspect APK Signature Schemes (v1/v2/v3)", lambda: self._run_extended_tool("inspect-apk-signature"))
+        menu_android.addAction("Decode Android Resources (apktool)", lambda: self._run_extended_tool("decode-android-resources"))
+        menu_android.addAction("Search Android Classes (DEX)", lambda: self._run_extended_tool("search-android-classes"))
+        menu_android.addAction("Project Android Application Graph", lambda: self._run_extended_tool("project-android-application-graph"))
+        menu_android.addAction("List Connected ADB Devices", lambda: self._run_global_tool("list-adb-devices"))
+
+        # 8. Apple & Mach-O Submenu
+        menu_apple = menu_more.addMenu("Apple & Mach-O")
+        menu_apple.addAction("Inspect Mach-O Headers", lambda: self._run_extended_tool("inspect-macho-headers"))
+        menu_apple.addAction("Inspect Apple IPS Crash Report", lambda: self._run_extended_tool("inspect-apple-ips"))
+        menu_apple.addAction("Demangle Swift Symbols", lambda: self._run_extended_tool("demangle-swift"))
+
+        # 9. Web & Dynamic Hooking Submenu
+        menu_web = menu_more.addMenu("Web & Dynamic Hooking")
+        menu_web.addAction("Inspect WebAssembly Artifact (WABT)", lambda: self._run_extended_tool("inspect-wasm-artifact"))
+        menu_web.addAction("Recover JavaScript Sources (CDP)", lambda: self._run_extended_tool("recover-javascript-sources"))
+        menu_web.addAction("List Frida Devices", lambda: self._run_global_tool("list-frida-devices"))
 
         menu_more.addSeparator()
-
-        act_pe = menu_more.addAction("Inspect PE Headers (Windows)")
-        act_pe.triggered.connect(lambda: self._run_extended_tool("inspect-pe-headers"))
-
-        act_macho = menu_more.addAction("Inspect Mach-O Headers (Apple)")
-        act_macho.triggered.connect(lambda: self._run_extended_tool("inspect-macho-headers"))
-
-        act_wasm = menu_more.addAction("Inspect WebAssembly Artifact (WABT)")
-        act_wasm.triggered.connect(lambda: self._run_extended_tool("inspect-wasm-artifact"))
-
-        menu_more.addSeparator()
-
-        act_apk_classes = menu_more.addAction("Search Android Classes (APK)")
-        act_apk_classes.triggered.connect(lambda: self._run_extended_tool("search-android-classes"))
-
-        act_apk_graph = menu_more.addAction("Project Android Application Graph")
-        act_apk_graph.triggered.connect(lambda: self._run_extended_tool("project-android-application-graph"))
-
-        act_adb_devices = menu_more.addAction("List Connected ADB Devices")
-        act_adb_devices.triggered.connect(lambda: self._run_global_tool("list-adb-devices"))
-
-        menu_more.addSeparator()
-
-        act_js = menu_more.addAction("Recover JavaScript Sources (CDP)")
-        act_js.triggered.connect(lambda: self._run_extended_tool("recover-javascript-sources"))
-
-        act_frida = menu_more.addAction("List Frida Devices")
-        act_frida.triggered.connect(lambda: self._run_global_tool("list-frida-devices"))
-
-        menu_more.addSeparator()
-
         act_custom = menu_more.addAction("Run Custom REA Command...")
         act_custom.triggered.connect(self._open_custom_command_dialog)
 
@@ -1489,6 +1542,7 @@ class ReaMainWindow(QMainWindow):
 
         chips = [
             ("Explain Binary", "Analyze the target binary and explain its primary purpose and functionality."),
+            ("Entropy & Packing", "Analyze whether this binary is packed, compressed, or obfuscated based on byte entropy and anomalous section headers."),
             ("Vulnerability Scan", "Scan the binary's functions and imports for potential security vulnerabilities, unsafe buffer operations, or format string bugs."),
             ("Explain Disasm", "Review the current disassembly and explain the control flow and critical logic."),
             ("Extract Secrets", "Look through extracted strings and symbols for hardcoded secrets, keys, IP addresses, or endpoints.")
@@ -1628,6 +1682,16 @@ class ReaMainWindow(QMainWindow):
 
     def _detect_file_format(self, path: str) -> str:
         try:
+            basename = os.path.basename(path).lower()
+            if basename == "global-metadata.dat":
+                return "Unity IL2CPP Metadata"
+            if basename.endswith(".ips"):
+                return "Apple IPS Crash Report"
+            if basename.endswith(".pyc"):
+                return "Python Bytecode (.pyc)"
+            if basename.endswith((".onnx", ".gguf", ".safetensors")):
+                return "AI Model Artifact"
+
             with open(path, "rb") as f:
                 magic = f.read(16)
                 if magic.startswith(b"\x7fELF"):
@@ -1646,6 +1710,10 @@ class ReaMainWindow(QMainWindow):
                     return "WebAssembly (WASM)"
                 elif magic.startswith(b"dex\n"):
                     return "Dalvik Executable (DEX)"
+                elif magic.startswith(b"FOR1") and path.endswith(".beam"):
+                    return "Erlang BEAM Bytecode"
+                elif magic.startswith(b"GGUF"):
+                    return "GGUF AI Model"
         except Exception:
             pass
         return "Raw Binary"

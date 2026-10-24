@@ -6,8 +6,13 @@ import type {
   RenderedTerminalFrame,
 } from "../../domain/process/processCapture.js";
 
-import { Terminal } from "@xterm/headless";
+import * as HeadlessPackage from "@xterm/headless";
 import { SerializeAddon } from "@xterm/addon-serialize";
+
+const Terminal =
+  (HeadlessPackage as any).Terminal ||
+  (HeadlessPackage as any).default?.Terminal ||
+  (HeadlessPackage as any).default;
 
 const TRAILING_SPACES = / +$/u;
 

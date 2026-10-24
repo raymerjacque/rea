@@ -3,13 +3,18 @@
 import packageJson from "../package.json" with { type: "json" };
 import { runEntrypoint } from "../dist/mcp/main.js";
 import { runProductionMcpDoctorCli } from "../dist/cli-runtime/mcpDoctor.js";
-import { cliConfigurationError, createCli } from "../dist/cli-runtime/cli.js";
+import {
+  createCli,
+  closeCliJavaScriptResources,
+} from "../dist/cli-runtime/cli.js";
 import { createCliResultOutput } from "../dist/cli-runtime/cliResultOutput.js";
 import {
+  cliConfigurationError,
   normalizeCliArguments,
+  parseCliOutputArguments,
   renderCliOutputArgumentError,
   renderEmptyFilteredCliOutput,
-  validateCliOutputArguments,
+  renderVersionReport,
 } from "../dist/cli-runtime/cliOutput.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,7 +56,8 @@ if (isMcpMode) {
 } else {
   guardClosedStdout();
   const cliArgs = normalizeCliArguments(args);
-  const outputArguments = validateCliOutputArguments(cliArgs);
+  const outputOptions = parseCliOutputArguments(cliArgs);
+  const outputArguments = outputOptions.validation;
   const configurationError = cliConfigurationError(process.env);
   if (configurationError !== undefined) {
     process.stderr.write(`${configurationError}\n`);
@@ -61,7 +67,7 @@ if (isMcpMode) {
     process.exitCode = 1;
   } else {
     let wroteOutput = false;
-    const resultOutput = createCliResultOutput(cliArgs, process.stdout);
+    const resultOutput = createCliResultOutput(outputOptions, process.stdout);
     try {
       await createCli(process.env, resultOutput).serve(cliArgs, {
         stdout: (output) => {
@@ -71,15 +77,27 @@ if (isMcpMode) {
             return;
           }
           if (output.length > 0) wroteOutput = true;
+          if (resultOutput?.captureSdkOutput?.(output)) return;
           writeStdout(output);
         },
-        exit: (code) => process.exit(stdoutClosed ? SIGPIPE_EXIT_STATUS : code),
+        exit: (code) => {
+          void (async () => {
+            let status = code;
+            try {
+              await closeCliJavaScriptResources?.();
+            } catch {}
+            try {
+              await resultOutput?.finishSdkOutput?.(code);
+            } catch {}
+            process.exit(stdoutClosed ? SIGPIPE_EXIT_STATUS : status);
+          })();
+        },
       });
     } catch (cause) {
       if (wroteOutput) throw cause;
       const recovered = await resultOutput
-        ?.recoverFormattingFailure(cause)
-        .catch((writeFailure) => {
+        ?.recoverFormattingFailure?.(cause)
+        ?.catch((writeFailure) => {
           if (!stdoutClosed) throw writeFailure;
           return true;
         });
