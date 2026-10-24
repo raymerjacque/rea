@@ -13,14 +13,10 @@ import { spawn } from "@lydell/node-pty";
 
 import { TOOL_CONTRACTS } from "../dist/contracts/toolContracts.js";
 import { PRODUCT_IDENTITY } from "../dist/identity.js";
-import {
-  json,
-  pathExists,
-  run,
-  runWithStatus,
-} from "./lib/verify-package-core.mjs";
+import { json, pathExists } from "./lib/verify-package-core.mjs";
 import { parse as parseJsonc } from "jsonc-parser";
 import { skillReferenceIssues } from "./lib/docs-facts.mjs";
+import { setupPlanFailureMessage } from "./verify-package-setup-plan.mjs";
 
 export const terminalModesRestored = (termios) => {
   if (typeof termios !== "string") return false;
@@ -45,8 +41,8 @@ const CODEX_ORIGINAL = [
   "",
 ].join("\n");
 
-const verifyMcpAdd = async ({ cli, environment, npxLog }) => {
-  await run(cli, ["mcp", "add"], environment);
+const verifyMcpAdd = async ({ commands, cli, environment, npxLog }) => {
+  await commands.run(cli, ["mcp", "add"], environment);
   const mcpRegistration = await readFile(npxLog, "utf8");
   const expected = `add-mcp npx -y ${PRODUCT_IDENTITY.registrationPackageSpecifier} mcp --name rea`;
   if (!mcpRegistration.includes(expected))
@@ -234,6 +230,7 @@ const verifyRedirectedStdoutSetup = async ({
   });
 
 const verifySetupPlan = async ({
+  commands,
   cli,
   environment,
   claudeConfig,
@@ -243,41 +240,60 @@ const verifySetupPlan = async ({
   opencodeOriginal,
   supportedSetupHost,
 }) => {
-  const plannedExecution = await runWithStatus(
+  const plannedExecution = await commands.runWithStatus(
     cli,
     ["setup", "--all-detected", "--dry-run", "--json"],
     environment,
   );
   const planned = json(plannedExecution.stdout);
   if (supportedSetupHost) {
+    const plannedActions = Array.isArray(planned?.plannedActions)
+      ? planned.plannedActions
+      : undefined;
+    const appliedActions = Array.isArray(planned?.appliedActions)
+      ? planned.appliedActions
+      : undefined;
     const plannedClaudeConfig = await readFile(claudeConfig, "utf8");
     const plannedCodexConfig = await readFile(codexTarget, "utf8");
     const plannedCursorConfig = await readFile(cursorConfig, "utf8");
     const plannedOpenCodeConfig = await readFile(opencodeConfig, "utf8");
     if (
-      planned.status !== "planned" ||
+      planned?.status !== "planned" ||
       plannedExecution.status !== 0 ||
-      planned.appliedActions.length !== 0 ||
-      !planned.plannedActions.some(({ kind }) => kind === "configure_client") ||
-      !planned.plannedActions.some(({ kind }) => kind === "install_skill") ||
+      plannedActions === undefined ||
+      appliedActions === undefined ||
+      appliedActions.length !== 0 ||
+      !plannedActions.some((action) => action?.kind === "configure_client") ||
+      !plannedActions.some((action) => action?.kind === "install_skill") ||
       plannedClaudeConfig !== '{"existing":true}\n' ||
       plannedCodexConfig !== CODEX_ORIGINAL ||
       plannedCursorConfig !== '{"existing":true}\n' ||
       plannedOpenCodeConfig !== opencodeOriginal
     )
       throw new Error(
-        `packaged setup plan was not read-only: ${JSON.stringify({ status: planned.status, exitCode: plannedExecution.status, plannedKinds: planned.plannedActions.map(({ kind }) => kind), appliedKinds: planned.appliedActions.map(({ kind }) => kind), claudeConfig: plannedClaudeConfig, codexConfig: plannedCodexConfig, cursorConfig: plannedCursorConfig })}`,
+        setupPlanFailureMessage({
+          planned,
+          plannedExecution,
+          plannedClaudeConfig,
+          plannedCodexConfig,
+          plannedCursorConfig,
+        }),
       );
   }
   return { planned };
 };
 
-const verifyAbsentOpenCodeSetup = async ({ cli, environment, home }) => {
+const verifyAbsentOpenCodeSetup = async ({
+  commands,
+  cli,
+  environment,
+  home,
+}) => {
   const xdgConfigHome = join(home, ".xdg-opencode-absent");
   const configPath = join(xdgConfigHome, "opencode", "opencode.json");
   if (await pathExists(configPath))
     throw new Error("packaged OpenCode first-run fixture was not absent");
-  const execution = await runWithStatus(
+  const execution = await commands.runWithStatus(
     cli,
     ["setup", "--yes", "--client", "opencode", "--skill=false", "--json"],
     { ...environment, XDG_CONFIG_HOME: xdgConfigHome },
@@ -298,7 +314,12 @@ const verifyAbsentOpenCodeSetup = async ({ cli, environment, home }) => {
   await rm(xdgConfigHome, { recursive: true, force: true });
 };
 
-const verifyAbsentClaudeCodeSetup = async ({ cli, environment, home }) => {
+const verifyAbsentClaudeCodeSetup = async ({
+  commands,
+  cli,
+  environment,
+  home,
+}) => {
   const freshHome = join(home, ".claude-code-absent-home");
   const configPath = join(freshHome, ".claude.json");
   const markerPath = join(freshHome, ".claude");
@@ -321,7 +342,11 @@ const verifyAbsentClaudeCodeSetup = async ({ cli, environment, home }) => {
     "--skill=false",
     "--json",
   ];
-  const firstExecution = await runWithStatus(cli, args, childEnvironment);
+  const firstExecution = await commands.runWithStatus(
+    cli,
+    args,
+    childEnvironment,
+  );
   const first = json(firstExecution.stdout);
   const config = json(await readFile(configPath, "utf8"));
   const registration = first.doctor.identity?.registrations?.find(
@@ -340,7 +365,11 @@ const verifyAbsentClaudeCodeSetup = async ({ cli, environment, home }) => {
     throw new Error(
       `packaged setup did not configure an explicitly selected Claude Code with no marker directory: ${JSON.stringify(first)}`,
     );
-  const repeatExecution = await runWithStatus(cli, args, childEnvironment);
+  const repeatExecution = await commands.runWithStatus(
+    cli,
+    args,
+    childEnvironment,
+  );
   const repeat = json(repeatExecution.stdout);
   if (
     repeatExecution.status !== 0 ||
@@ -355,6 +384,7 @@ const verifyAbsentClaudeCodeSetup = async ({ cli, environment, home }) => {
 };
 
 const verifySetupApply = async ({
+  commands,
   cli,
   environment,
   supportedSetupHost,
@@ -363,19 +393,19 @@ const verifySetupApply = async ({
   const status = "ready";
   const hopperStatus =
     hopperSetupSupported === true ? "needs_confirmation" : "needs_human";
-  const firstExecution = await runWithStatus(
+  const firstExecution = await commands.runWithStatus(
     cli,
     ["setup", "--yes", "--all-detected", "--json"],
     environment,
   );
   const first = json(firstExecution.stdout);
-  const alignedExecution = await runWithStatus(
+  const alignedExecution = await commands.runWithStatus(
     cli,
     ["setup", "--all-detected", "--json"],
     environment,
   );
   const aligned = json(alignedExecution.stdout);
-  const secondExecution = await runWithStatus(
+  const secondExecution = await commands.runWithStatus(
     cli,
     [
       "setup",
@@ -505,8 +535,8 @@ const assertSkill = async ({ skillPath, siblingSkillPath, root }) => {
     throw new Error("packaged skill installation modified a sibling skill");
 };
 
-const assertAlignedDoctor = async (cli, environment) => {
-  const alignedDoctorExecution = await runWithStatus(
+const assertAlignedDoctor = async (commands, cli, environment) => {
+  const alignedDoctorExecution = await commands.runWithStatus(
     cli,
     ["doctor", "--json"],
     environment,
@@ -525,6 +555,7 @@ const assertAlignedDoctor = async (cli, environment) => {
 };
 
 const verifyConfigReadback = async ({
+  commands,
   cli,
   environment,
   claudeConfig,
@@ -560,10 +591,11 @@ const verifyConfigReadback = async ({
     throw new Error(
       "packaged OpenCode backup did not preserve the original JSONC",
     );
-  await assertAlignedDoctor(cli, environment);
+  await assertAlignedDoctor(commands, cli, environment);
 };
 
 const verifySetupFailureRecovery = async ({
+  commands,
   cli,
   environment,
   claudeConfig,
@@ -572,7 +604,7 @@ const verifySetupFailureRecovery = async ({
 }) => {
   await writeFile(claudeConfig, "malformed");
   await writeFile(cursorConfig, '{"existing":true}\n');
-  const failedExecution = await runWithStatus(
+  const failedExecution = await commands.runWithStatus(
     cli,
     ["setup", "--yes", "--all-detected", "--json"],
     environment,
@@ -592,7 +624,7 @@ const verifySetupFailureRecovery = async ({
       `packaged setup mutated clients after a preflight failure: ${JSON.stringify(failed)}`,
     );
   await writeFile(claudeConfig, "{}\n");
-  const recoveredExecution = await runWithStatus(
+  const recoveredExecution = await commands.runWithStatus(
     cli,
     ["setup", "--yes", "--all-detected", "--json"],
     environment,
@@ -606,12 +638,12 @@ const verifySetupFailureRecovery = async ({
     throw new Error("packaged setup did not recover");
 };
 
-const verifyDanglingSymlink = async ({ cli, environment, home }) => {
+const verifyDanglingSymlink = async ({ commands, cli, environment, home }) => {
   const geminiDir = join(home, ".gemini");
   const geminiConfig = join(geminiDir, "settings.json");
   await mkdir(geminiDir, { recursive: true });
   await symlink(join(home, "missing-gemini.json"), geminiConfig);
-  const danglingExecution = await runWithStatus(
+  const danglingExecution = await commands.runWithStatus(
     cli,
     ["setup", "--yes", "--client", "gemini_cli", "--json"],
     environment,
@@ -634,6 +666,7 @@ const verifyDanglingSymlink = async ({ cli, environment, home }) => {
 };
 
 const verifyUninstall = async ({
+  commands,
   cli,
   environment,
   cursorConfig,
@@ -642,7 +675,7 @@ const verifyUninstall = async ({
   codexTarget,
   opencodeConfig,
 }) => {
-  const uninstallExecution = await runWithStatus(
+  const uninstallExecution = await commands.runWithStatus(
     cli,
     ["uninstall", "--json"],
     environment,
@@ -692,6 +725,7 @@ const verifyUninstall = async ({
 
 /** Verify setup transactions, skill installation, and uninstall for supported hosts. */
 export async function verifyPackageSetup({
+  commands,
   cli,
   packageRunnerCli,
   environment,
@@ -706,7 +740,7 @@ export async function verifyPackageSetup({
   hopperSetupSupported,
   root,
 }) {
-  await verifyMcpAdd({ cli, environment, npxLog });
+  await verifyMcpAdd({ commands, cli, environment, npxLog });
   const skillPath = join(
     home,
     ".agents/skills/reverse-engineer-anything/SKILL.md",
@@ -749,6 +783,7 @@ export async function verifyPackageSetup({
     unchangedPaths,
   });
   await verifySetupPlan({
+    commands,
     cli,
     environment,
     claudeConfig,
@@ -759,15 +794,17 @@ export async function verifyPackageSetup({
     supportedSetupHost,
   });
   const apply = await verifySetupApply({
+    commands,
     cli,
     environment,
     supportedSetupHost,
     hopperSetupSupported,
   });
   if (supportedSetupHost) {
-    await verifyAbsentOpenCodeSetup({ cli, environment, home });
-    await verifyAbsentClaudeCodeSetup({ cli, environment, home });
+    await verifyAbsentOpenCodeSetup({ commands, cli, environment, home });
+    await verifyAbsentClaudeCodeSetup({ commands, cli, environment, home });
     await verifyConfigReadback({
+      commands,
       cli,
       environment,
       claudeConfig,
@@ -783,14 +820,16 @@ export async function verifyPackageSetup({
       cursorOriginal,
     });
     await verifySetupFailureRecovery({
+      commands,
       cli,
       environment,
       claudeConfig,
       cursorConfig,
       status: apply.status,
     });
-    await verifyDanglingSymlink({ cli, environment, home });
+    await verifyDanglingSymlink({ commands, cli, environment, home });
     await verifyUninstall({
+      commands,
       cli,
       environment,
       cursorConfig,

@@ -1,11 +1,9 @@
-import { PADDED_BASE64_PATTERN } from "./stringPatterns.js";
+import { isPaddedBase64 } from "./stringPatterns.js";
 
 /** Validate padded syntax without imposing canonical zero pad bits. */
 export const paddedBase64ByteLength = (value: string): number | undefined => {
-  if (value.length % 4 !== 0 || !PADDED_BASE64_PATTERN.test(value))
-    return undefined;
-  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
-  return (value.length / 4) * 3 - padding;
+  if (!isPaddedBase64(value)) return undefined;
+  return Buffer.byteLength(value, "base64");
 };
 
 export const decodePaddedBase64 = (value: string): Buffer | undefined =>

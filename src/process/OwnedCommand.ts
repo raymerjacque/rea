@@ -9,6 +9,7 @@ import { pipeline } from "node:stream/promises";
 import type {
   OwnedProviderProcessSpawnOptions,
   ProviderProcessSnapshot,
+  ProcessDiagnosticBudget,
   ProviderProcessStopResult,
   SpawnedOwnedProviderProcess,
 } from "./ProviderProcess.js";
@@ -82,8 +83,8 @@ export const ownedCommandResources = (
 
 /** Output handling for one owned command. */
 interface OwnedCommandLimits {
-  /** Retained stderr bytes, plus stdout bytes unless a sink consumes stdout. */
-  readonly diagnosticBytes: number;
+  /** Retained output budget; stdout is excluded when a sink consumes it. */
+  readonly diagnosticBytes: ProcessDiagnosticBudget;
   /** Accept an ordinary nonzero exit after output closes without other process errors. */
   readonly acceptNonZeroExit?: boolean;
   /** Interpret complete physical output synchronously before awaited final cleanup. */
@@ -158,7 +159,10 @@ function throwCommandPreparationFailure(
 /** Execute a single owned process with independent cleanup and bounded diagnostic retention. */
 export const runOwnedCommand = async (
   spawn: OwnedProviderProcessSpawnOptions,
-  limits: OwnedCommandLimits & { readonly timeoutMs: number },
+  limits: OwnedCommandLimits & {
+    /** A positive absolute deadline, or null to keep only caller cancellation. */
+    readonly timeoutMs: number | null;
+  },
   options: {
     readonly signal?: AbortSignal | undefined;
     /** Synchronously accept unresolved cleanup ownership; execution still returns its original outcome. Must not throw. */
@@ -180,18 +184,27 @@ export const runOwnedCommand = async (
       null,
       { cancellation: { reason: callerSignal.reason } },
     );
-  const deadline = new ProviderStartupDeadline(limits.timeoutMs, callerSignal);
+  const deadline =
+    limits.timeoutMs === null
+      ? undefined
+      : new ProviderStartupDeadline(limits.timeoutMs, callerSignal);
+  const control = deadline ?? {
+    signal: callerSignal ?? new AbortController().signal,
+    get interruption(): "cancelled" | undefined {
+      return callerSignal?.aborted === true ? "cancelled" : undefined;
+    },
+  };
   try {
     return await collectOwnedCommand(
       spawn,
       limits,
       options.launcher ?? spawnOwnedProviderProcess,
-      deadline,
+      control,
       callerSignal,
       options.retainCleanup,
     );
   } finally {
-    deadline.dispose();
+    deadline?.dispose();
   }
 };
 
@@ -201,7 +214,7 @@ const collectOwnedCommand = async (
   launcher: (
     input: OwnedProviderProcessSpawnOptions,
   ) => Promise<SpawnedOwnedProviderProcess>,
-  deadline: ProviderStartupDeadline,
+  deadline: Pick<ProviderStartupDeadline, "signal" | "interruption">,
   callerSignal?: AbortSignal,
   retainCleanup?: (
     owner: ProviderProcessSupervisor,
@@ -219,8 +232,16 @@ const collectOwnedCommand = async (
     throwCommandPreparationFailure(cause, signal, deadline.interruption);
   }
   let exceeded = false;
+  let outputLimitObservedBeforeInterruption = false;
   let processFailure: string | undefined;
   let processError: Error | undefined;
+  let processFailureBeforeInterruption:
+    | {
+        readonly message: string;
+        readonly processError: Error | undefined;
+        readonly collectionFailure: boolean;
+      }
+    | undefined;
   const supervisor = new ProviderProcessSupervisor(
     {
       ...launched,
@@ -233,11 +254,37 @@ const collectOwnedCommand = async (
       captureStdout: limits.stdout === undefined,
       maxDiagnosticBytes: limits.diagnosticBytes,
       onDiagnostic: (event) => {
-        if (event.type === "output" && event.truncated === true)
+        if (event.type === "output" && event.truncated === true) {
           exceeded = true;
+          if (deadline.interruption === undefined)
+            outputLimitObservedBeforeInterruption = true;
+        }
         if (event.type === "error") {
           processFailure ??= event.message;
           processError ??= event.cause;
+          if (deadline.interruption === undefined)
+            processFailureBeforeInterruption ??= {
+              message: processFailure,
+              processError,
+              collectionFailure: true,
+            };
+        }
+        if (event.type === "exit" && deadline.interruption === undefined) {
+          const acceptedNonzeroExit =
+            limits.acceptNonZeroExit === true &&
+            event.code !== null &&
+            event.code !== 0 &&
+            event.signal === null;
+          if (
+            event.signal !== null ||
+            (event.code !== null && event.code !== 0 && !acceptedNonzeroExit)
+          )
+            processFailureBeforeInterruption ??= {
+              message:
+                "Command failed; inspect its exit status and diagnostics.",
+              processError: undefined,
+              collectionFailure: false,
+            };
         }
       },
     },
@@ -251,23 +298,51 @@ const collectOwnedCommand = async (
   );
   void consumed.then((failed) => {
     processFailure ??= failed;
+    if (failed !== undefined && deadline.interruption === undefined)
+      processFailureBeforeInterruption ??= {
+        message: processFailure ?? failed,
+        processError,
+        collectionFailure: true,
+      };
   });
   let failure: OwnedCommandFailure | undefined;
+  const throwInterruptionOrObservedFailure = (
+    interruption: "cancelled" | "timeout" | undefined,
+    snapshot: ProviderProcessSnapshot | null = null,
+  ): void => {
+    if (interruption === undefined) return;
+    if (outputLimitObservedBeforeInterruption)
+      throw new OwnedCommandFailure(
+        "output-limit",
+        "Command diagnostic output exceeded its complete-output budget.",
+        snapshot,
+      );
+    if (processFailureBeforeInterruption !== undefined)
+      throw new OwnedCommandFailure(
+        "process",
+        processFailureBeforeInterruption.message,
+        snapshot,
+        null,
+        {
+          processError: processFailureBeforeInterruption.processError,
+          collectionFailure: processFailureBeforeInterruption.collectionFailure,
+        },
+      );
+    throw new OwnedCommandFailure(
+      interruption,
+      interruption === "cancelled"
+        ? "Command cancelled."
+        : "Command deadline elapsed.",
+      snapshot,
+      null,
+      interruption === "cancelled"
+        ? { cancellation: { reason: signal.reason } }
+        : undefined,
+    );
+  };
   try {
     while (!(await supervisor.waitForOutputClose(10))) {
-      const interruption = deadline.interruption;
-      if (interruption !== undefined)
-        throw new OwnedCommandFailure(
-          interruption,
-          interruption === "cancelled"
-            ? "Command cancelled."
-            : "Command deadline elapsed.",
-          null,
-          null,
-          interruption === "cancelled"
-            ? { cancellation: { reason: signal.reason } }
-            : undefined,
-        );
+      throwInterruptionOrObservedFailure(deadline.interruption);
       if (exceeded)
         throw new OwnedCommandFailure(
           "output-limit",
@@ -284,19 +359,7 @@ const collectOwnedCommand = async (
     const sinkFailure = await waitForAbortable(consumed, signal);
     if (sinkFailure !== ABORTED) processFailure ??= sinkFailure;
     const snapshot = supervisor.snapshot();
-    const interruption = deadline.interruption;
-    if (interruption !== undefined)
-      throw new OwnedCommandFailure(
-        interruption,
-        interruption === "cancelled"
-          ? "Command cancelled."
-          : "Command deadline elapsed.",
-        snapshot,
-        null,
-        interruption === "cancelled"
-          ? { cancellation: { reason: signal.reason } }
-          : undefined,
-      );
+    throwInterruptionOrObservedFailure(deadline.interruption, snapshot);
     if (exceeded)
       throw new OwnedCommandFailure(
         "output-limit",
